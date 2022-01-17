@@ -5,18 +5,12 @@ import tensorflow as tf
 tf.get_logger().setLevel('ERROR')
 
 from datasets import load_dataset
-from modellib import Transformer
+from modellib import Seq2EmbTransformer
 from tensorflow.keras import layers, models, losses, metrics, optimizers
 import numpy as np
 
 def create_classifier(num_classes):
-    transformer = Transformer()
-    transformer.add_text_input(input_vocab_size=10000, embedding_dim=256, seq_len=30)
-
-    transformer.add_transformer_block(hidden_dim=1024, embedding_dim=256, num_heads=3)
-
-    transformer.add_classifier(num_classes=num_classes)
-    transformer.build()
+    transformer = Seq2EmbTransformer.get(sequence_length=30, src_vocab_size=10000, num_classes=num_classes)
     return transformer
 
 dataset = load_dataset("ag_news")

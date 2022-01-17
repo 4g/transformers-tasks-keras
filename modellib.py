@@ -1,3 +1,4 @@
+import keras
 from tensorflow.keras import layers, models
 from tensorflow.keras.layers import TextVectorization
 import tensorflow as tf
@@ -102,8 +103,9 @@ class TransformerDecoder(layers.Layer):
         })
         return config
 
-    def call(self, inputs, encoder_outputs, mask=None):
+    def call(self, inputs, encoder_outputs=None, mask=None):
         causal_mask = self.get_causal_attention_mask(inputs)
+        padding_mask = None
         if mask is not None:
             padding_mask = tf.cast(mask[:, tf.newaxis, :], dtype="int32")
             padding_mask = tf.minimum(padding_mask, causal_mask)
@@ -139,79 +141,75 @@ class TransformerDecoder(layers.Layer):
 
 class Seq2SeqTransformer:
     @staticmethod
-    def get(sequence_length, vocab_size, ):
-        embed_dim = 32
-        latent_dim = 128
-        num_heads = 4
+    def get(sequence_length, src_vocab_size, tgt_vocab_size):
+        embed_dim = 128
+        latent_dim = 1024
+        num_heads = 8
 
         encoder_inputs = layers.Input(shape=(sequence_length,), dtype="int64", name="encoder_inputs")
-        x = PositionalEmbedding(sequence_length, vocab_size, embed_dim)(encoder_inputs)
+        x = PositionalEmbedding(sequence_length, src_vocab_size, embed_dim)(encoder_inputs)
         encoder_outputs = TransformerEncoder(embed_dim, latent_dim, num_heads)(x)
+        encoder_outputs = TransformerEncoder(embed_dim, latent_dim, num_heads)(encoder_outputs)
+        encoder_outputs = TransformerEncoder(embed_dim, latent_dim, num_heads)(encoder_outputs)
+
 
         decoder_inputs = layers.Input(shape=(sequence_length,), dtype="int64", name="decoder_inputs")
         encoded_seq_inputs = layers.Input(shape=(sequence_length, embed_dim), name="decoder_state_inputs")
-        x = PositionalEmbedding(sequence_length, vocab_size, embed_dim)(decoder_inputs)
+        x = PositionalEmbedding(sequence_length, tgt_vocab_size, embed_dim)(decoder_inputs)
+
         x = TransformerDecoder(embed_dim, latent_dim, num_heads)(x, encoded_seq_inputs)
-        x = layers.Dense(vocab_size, activation='softmax')(x)
+        x = TransformerDecoder(embed_dim, latent_dim, num_heads)(x, encoded_seq_inputs)
+        x = TransformerDecoder(embed_dim, latent_dim, num_heads)(x, encoded_seq_inputs)
+
+        x = layers.Dense(tgt_vocab_size, activation='softmax')(x)
         decoder = models.Model([decoder_inputs, encoded_seq_inputs], x)
-        decoder.summary()
         decoder_outputs = decoder([decoder_inputs, encoder_outputs])
         transformer = models.Model(
             [encoder_inputs, decoder_inputs], decoder_outputs, name="transformer"
         )
+
         return transformer
 
+class Seq2EmbTransformer:
+    @staticmethod
+    def get(sequence_length, src_vocab_size, num_classes=None):
+        embed_dim = 128
+        latent_dim = 1024
+        num_heads = 8
 
-class Transformer:
-    def __init__(self):
-        self.model = None
-        self.input = None
-        self.output = None
+        encoder_inputs = layers.Input(shape=(sequence_length,), dtype="int64", name="encoder_inputs")
+        x = PositionalEmbedding(sequence_length, src_vocab_size, embed_dim)(encoder_inputs)
+        encoder_outputs = TransformerEncoder(embed_dim, latent_dim, num_heads)(x)
+        encoder_outputs = TransformerEncoder(embed_dim, latent_dim, num_heads)(encoder_outputs)
+        encoder_outputs = TransformerEncoder(embed_dim, latent_dim, num_heads)(encoder_outputs)
 
-    def add_transformer_block(self, hidden_dim, embedding_dim, num_heads):
-        attention_head = layers.MultiHeadAttention(num_heads=num_heads,
-                                                   key_dim=embedding_dim)(self.output, self.output)
+        if num_classes:
+            x = layers.GlobalAveragePooling1D()(encoder_outputs)
+            encoder_outputs = layers.Dense(num_classes, activation="softmax")(x)
 
-        normalize_1 = layers.LayerNormalization()(attention_head + self.output)
-        projection = tf.keras.Sequential(
-            [layers.Dense(hidden_dim, activation="relu"), layers.Dense(embedding_dim), ]
-        )(normalize_1)
-        self.output = layers.LayerNormalization()(normalize_1 + projection)
+        transformer = models.Model(
+            encoder_inputs, encoder_outputs, name="transformer"
+        )
 
-    def add_text_input(self, input_vocab_size, embedding_dim, seq_len):
-        input_layer = layers.Input(shape=(1,), dtype=tf.string)
-        self.input = input_layer
-        self.vectorizer = TextVectorization(max_tokens=input_vocab_size, output_mode="int",
-                                            output_sequence_length=seq_len)
-        eng_vectorization = self.vectorizer(input_layer)
-        embedding_layer = layers.Embedding(input_dim=input_vocab_size,
-                                           output_dim=embedding_dim)(eng_vectorization)
+        return transformer
 
-        positions = tf.range(start=0, limit=seq_len, delta=1)
-        position_embeddings = layers.Embedding(
-            input_dim=seq_len, output_dim=embedding_dim
-        )(positions)
-
-        self.output = position_embeddings + embedding_layer
-
-    def add_classifier(self, num_classes):
-        x = layers.GlobalAveragePooling1D()(self.output)
-        self.output = layers.Dense(num_classes, activation="softmax")(x)
-
-    def build(self):
-        self.model = models.Model(inputs=self.input, outputs=self.output)
-
-    def get_vectorizer(self):
-        return self.vectorizer
+def load(model_path):
+    model = keras.models.load_model(model_path, custom_objects={"PositionalEmbedding": PositionalEmbedding,
+                                                                     "TransformerEncoder": TransformerEncoder,
+                                                                     "TransformerDecoder": TransformerDecoder})
+    return model
 
 if __name__ == "__main__":
     import argparse
     parser = argparse.ArgumentParser()
     args = parser.parse_args()
 
-    transformer = Transformer()
-    transformer.add_text_input(input_vocab_size=30000, embedding_dim=128, seq_len=10)
-    transformer.add_transformer_block(hidden_dim=512, embedding_dim=128, num_heads=2)
-    transformer.add_transformer_block(hidden_dim=512, embedding_dim=128, num_heads=2)
-    transformer.build()
-    transformer.model.summary()
+    # transformer = Seq2SeqTransformer.get(25, src_vocab_size=20000, tgt_vocab_size=15000)
+    transformer = Seq2EmbTransformer.get(25, src_vocab_size=20000, num_classes=20000)
+    keras.models.save_model(transformer, "/tmp/model_saved.hdf5")
+    transformer = load("/tmp/model_saved.hdf5")
+
+    transformer.summary()
+    # converter = tf.lite.TFLiteConverter.from_keras_model(transformer)
+    # converter.optimizations = [tf.lite.Optimize.DEFAULT]
+    # quantized_and_pruned_tflite_model = converter.convert()

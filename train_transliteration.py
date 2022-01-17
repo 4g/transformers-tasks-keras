@@ -9,69 +9,8 @@ os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'  # or any {'0', '1', '2'}
 import tensorflow as tf
 tf.get_logger().setLevel('ERROR')
 
-from enum import Enum
+
 import numpy as np
-
-class SpecialToken(Enum):
-    START = "[start]"
-    END = "[end]"
-    NULL = "[null]"
-
-class CharVectorizer:
-    def __init__(self, max_len=15):
-        self.max_len = max_len
-        self.vocab_index = {}
-        self.inv_vocab_index = {}
-        self.vocab = self.get_vocab()
-        self.special_tokens = {SpecialToken.START, SpecialToken.END, SpecialToken.NULL}
-        self.create_vocab_index()
-        self.vocab_size = len(self.vocab_index)
-
-    def create_vocab_index(self):
-        for token in self.special_tokens:
-            self.add_to_vocab(token)
-
-        for token in self.vocab:
-            self.add_to_vocab(token)
-
-        self.null_index = self.vocab_index.get(SpecialToken.NULL)
-
-    def add_to_vocab(self, ch):
-        index = len(self.vocab_index)
-        self.vocab_index[ch] = index
-        self.inv_vocab_index[index] = ch
-
-    def indexof(self, token):
-        return self.vocab_index.get(token, self.null_index)
-
-    def tokenize(self, text, length):
-        nulls = [self.null_index for i in range(length)]
-        tokens = self.process(text)
-        placeholder = [self.indexof(SpecialToken.START)]
-        placeholder += [self.indexof(token) for token in tokens]
-        placeholder += [self.indexof(SpecialToken.END)]
-        placeholder += nulls
-        placeholder = placeholder[:length]
-        return placeholder
-
-    def detokenize(self, tokens):
-        text = ""
-        for token in tokens:
-            chr = self.inv_vocab_index[token]
-            if chr not in self.special_tokens:
-                text += chr
-        return text
-
-    @staticmethod
-    def get_vocab():
-        english_valid_chars = set("abcdefghijklmnopqrstuvwxyz0123456789")
-        hi_valid_chars = set([chr(x) for x in range(2304, 2423)])
-        all_valid_chars = english_valid_chars.union(hi_valid_chars)
-        return all_valid_chars
-
-    def process(self, text):
-        text = text.lower()
-        return list(filter(lambda x: x in self.vocab, text))
 
 def load_data(file_path):
     srcs = []
