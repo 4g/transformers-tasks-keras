@@ -33,15 +33,15 @@ def make_dataset(src, tgt, batch_size):
     dataset = tf.data.Dataset.zip((src, tgt))
     dataset = dataset.batch(batch_size)
     dataset = dataset.map(format_dataset)
-    dataset = dataset.prefetch(128).cache(filename="datasets_serialized.tfrecord").shuffle(128)
+    dataset = dataset.prefetch(128).cache(filename="datasets/parallel/tfrecords/datasets_serialized.tfrecord").shuffle(128)
     return dataset
 
 maxlen = 25
 en_vectorizer = SubWordTokenizer(maxlen=maxlen)
-en_vectorizer.load("en_new_vocab.txt")
+en_vectorizer.load("datasets/parallel/en_new_vocab.txt")
 
 hi_vectorizer = SubWordTokenizer(maxlen=maxlen + 1)
-hi_vectorizer.load("hi_new_vocab.txt")
+hi_vectorizer.load("datasets/parallel/hi_new_vocab.txt")
 
 src_file = "datasets/parallel/samanantar.en"
 tgt_file = "datasets/parallel/samanantar.hi"

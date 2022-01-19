@@ -9,18 +9,18 @@ from modellib import PositionalEmbedding, TransformerDecoder, TransformerEncoder
 
 from wordpiece import SubWordTokenizer
 
-transformer = keras.models.load_model("transformer_epoch10.hdf5",
+transformer = keras.models.load_model("checkpoints/transformer_epoch10.hdf5",
                                       custom_objects={"PositionalEmbedding": PositionalEmbedding,
                                                       "TransformerEncoder": TransformerEncoder,
                                                       "TransformerDecoder": TransformerDecoder})
 
 maxlen = 25
 en_vectorizer = SubWordTokenizer(maxlen=maxlen)
-en_vectorizer.load("en_new_vocab.txt")
+en_vectorizer.load("datasets/parallel/en_new_vocab.txt")
 
 maxlen = 25
 hi_vectorizer = SubWordTokenizer(maxlen=maxlen)
-hi_vectorizer.load("hi_new_vocab.txt")
+hi_vectorizer.load("datasets/parallel/hi_new_vocab.txt")
 
 def decode_sequence(input_sentence):
     tokenized_input_sentence = np.asarray([en_vectorizer.tokenize([input_sentence])])
@@ -44,7 +44,7 @@ def decode_sequence(input_sentence):
     decoded_sentence = decoded_sentence.numpy().decode()
     return decoded_sentence
 
-tests = ["india has the best drivers in the world", "india has the worst cleaning programme in the world"]
+tests = ["india has the worst cleaning programme in the world"]
 
 for input_sentence in tests:
     translated = decode_sequence(input_sentence)

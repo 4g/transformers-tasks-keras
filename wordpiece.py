@@ -25,6 +25,8 @@ class Tokenizer:
         self.vocab = None
         self.special_token_indices = {c: i for i, c in enumerate(SpecialTokens.ALL)}
         self.vocab_size = 0
+        self.maxlen = maxlen
+
 
     def fit(self, fpath):
         raise NotImplementedError
@@ -54,10 +56,9 @@ class Tokenizer:
 
 class SubWordTokenizer(Tokenizer):
     def __init__(self, maxlen=20):
-        super(SubWordTokenizer, self).__init__()
+        super(SubWordTokenizer, self).__init__(maxlen)
         self.bert_tokenizer_params = dict(lower_case=False)
         self.vocab_size = 0
-        self.maxlen = maxlen
         self.START = tf.constant(self.indexof(SpecialTokens.START), dtype=tf.int64)
         self.END = tf.constant(self.indexof(SpecialTokens.END), dtype=tf.int64)
         self.PAD = tf.constant(self.indexof(SpecialTokens.PAD), dtype=tf.int64)
@@ -103,14 +104,16 @@ class SubWordTokenizer(Tokenizer):
         return self.bert_tokenizer.detokenize([tokenids])
 
 class CharTokenizer(Tokenizer):
-    def __init__(self, max_len=15):
-        super(CharTokenizer, self).__init__()
-        self.max_len = max_len
+    def __init__(self, maxlen=15):
+        super(CharTokenizer, self).__init__(maxlen)
         self.vocab_index = {}
         self.inv_vocab_index = {}
         self.vocab = self.get_vocab()
         self.create_vocab_index()
         self.vocab_size = len(self.vocab_index)
+        self.START = self.indexof(SpecialTokens.START)
+        self.END = self.indexof(SpecialTokens.END)
+        self.PAD = self.indexof(SpecialTokens.PAD)
 
     def create_vocab_index(self):
         for token in SpecialTokens.ALL:
@@ -132,21 +135,29 @@ class CharTokenizer(Tokenizer):
     def tokenize(self, text):
         tokens = self.process(text)
         tokens = [self.indexof(token) for token in tokens]
+        tokens = [self.START] + tokens + [self.END]
+        padl = [self.PAD for p in range(self.maxlen)]
+        tokens = tokens[0:self.maxlen]
+        padl[0:len(tokens)] = tokens
+        tokens = padl
+        if len(tokens) != self.maxlen:
+            print(padl)
+            # print(len(tokens), self.maxlen, len(padl))
         return tokens
 
     def detokenize(self, tokens):
         text = ""
         for token in tokens:
             chr = self.inv_vocab_index[token]
-            if chr not in self.special_tokens:
+            if chr not in SpecialTokens.ALL:
                 text += chr
         return text
 
     @staticmethod
     def get_vocab():
-        english_valid_chars = set("abcdefghijklmnopqrstuvwxyz0123456789")
-        hi_valid_chars = set([chr(x) for x in range(2304, 2423)])
-        all_valid_chars = english_valid_chars.union(hi_valid_chars)
+        english_valid_chars = list("abcdefghijklmnopqrstuvwxyz0123456789")
+        hi_valid_chars = list([chr(x) for x in range(2304, 2423)])
+        all_valid_chars = hi_valid_chars + english_valid_chars
         return all_valid_chars
 
     def process(self, text):
@@ -164,13 +175,3 @@ if __name__ == "__main__":
     tokenizer = SubWordTokenizer()
     tokenizer.fit(args.text)
     tokenizer.save(args.vocab)
-
-    # for line in open(args.text):
-    #     x = tokenizer.tokenize(line)
-    #     x = tokenizer.add_start(x)
-    #     x = tokenizer.add_end(x)
-    #     x = tokenizer.pad(x, 20)
-    #     y = tokenizer.detokenize(x).numpy()
-    #     y_str = tf.strings.reduce_join(y, separator=' ', axis=-1)
-    #     print(line, y_str[0].numpy().decode())
-    #     break
