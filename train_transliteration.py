@@ -38,7 +38,7 @@ def coshuffle(x, y):
     x, y = zip(*pairs)
     return list(x), list(y)
 
-files = ["datasets/transliterate/en_hi.txt"]
+files = ["text_data/transliterate/en_hi.txt"]
 src, tgt = [], []
 
 maxlen = 20

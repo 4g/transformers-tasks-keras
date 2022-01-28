@@ -16,11 +16,11 @@ transformer = keras.models.load_model("checkpoints/transformer_epoch10.hdf5",
 
 maxlen = 25
 en_vectorizer = SubWordTokenizer(maxlen=maxlen)
-en_vectorizer.load("datasets/parallel/en_new_vocab.txt")
+en_vectorizer.load("text_data/parallel/en_new_vocab.txt")
 
 maxlen = 25
 hi_vectorizer = SubWordTokenizer(maxlen=maxlen)
-hi_vectorizer.load("datasets/parallel/hi_new_vocab.txt")
+hi_vectorizer.load("text_data/parallel/hi_new_vocab.txt")
 
 def decode_sequence(input_sentence):
     tokenized_input_sentence = np.asarray([en_vectorizer.tokenize([input_sentence])])
